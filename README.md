@@ -306,6 +306,7 @@ This solution helps food delivery companies:
 * Customer Retention Systems
 * Loyalty Programs
 
+App Link: https://zomatodiscountai-yhusdyrytl3lyzgygclxtn.streamlit.app/
 ---
 
 ## Author
