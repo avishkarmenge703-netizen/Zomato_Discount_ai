@@ -1,264 +1,388 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
 import matplotlib.pyplot as plt
 
-# Page Config
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestRegressor
+
+# --------------------------------
+# PAGE CONFIG
+# --------------------------------
 
 st.set_page_config(
-    page_title="AI Discount Optimizer",
+    page_title="Zomato Discount AI",
+    page_icon="🍕",
     layout="wide"
 )
 
-# Load Models
+# --------------------------------
+# TITLE
+# --------------------------------
 
-classification_model = joblib.load("model_v1.pkl")
-regression_model = joblib.load("model_v2.pkl")
+st.title("🍕 Zomato Discount Optimization AI")
 
-# Sidebar
+st.markdown(
+    """
+    AI-powered system to optimize discounts,
+    improve customer retention,
+    and increase profitability.
+    """
+)
 
-st.sidebar.title("AI Discount Optimizer")
+# --------------------------------
+# SIDEBAR
+# --------------------------------
+
+st.sidebar.title("Upload Dataset")
 
 uploaded_file = st.sidebar.file_uploader(
-    "Upload Customer Dataset",
+    "Upload CSV",
     type=["csv"]
 )
 
-# Main Title
+# --------------------------------
+# NO FILE
+# --------------------------------
 
-st.title("AI-Powered Discount Optimization System")
+if uploaded_file is None:
 
-st.write(
-    "Optimize discounts, reduce coupon wastage, and improve profitability."
-)
+    st.info(
+        "Upload customers.csv to start analysis."
+    )
 
-# Load Dataset
+    st.stop()
 
-if uploaded_file:
+# --------------------------------
+# LOAD DATA
+# --------------------------------
+
+try:
 
     df = pd.read_csv(uploaded_file)
 
-    # KPIs
+except Exception as e:
 
-    total_customers = len(df)
+    st.error(f"CSV Error: {e}")
 
-    avg_order = round(
-        df['avg_order_value'].mean(),
-        2
+    st.stop()
+
+# --------------------------------
+# COLUMN VALIDATION
+# --------------------------------
+
+required_columns = [
+    "orders_per_month",
+    "avg_order_value",
+    "last_order_days",
+    "customer_rating",
+    "discount_used_before",
+    "ordered_without_discount",
+    "recommended_discount"
+]
+
+missing = [
+    col
+    for col in required_columns
+    if col not in df.columns
+]
+
+if missing:
+
+    st.error(
+        f"Missing columns: {missing}"
     )
 
-    loyal_customers = len(
-        df[df['orders_per_month'] > 10]
-    )
+    st.stop()
 
-    churn_risk = len(
-        df[df['last_order_days'] > 20]
-    )
+# --------------------------------
+# TRAIN MODELS
+# --------------------------------
 
-    # KPI Cards
+@st.cache_resource
+def train_models(data):
 
-    col1, col2, col3, col4 = st.columns(4)
-
-    col1.metric(
-        "Total Customers",
-        total_customers
-    )
-
-    col2.metric(
-        "Average Order Value",
-        f"₹{avg_order}"
-    )
-
-    col3.metric(
-        "Loyal Customers",
-        loyal_customers
-    )
-
-    col4.metric(
-        "Churn Risk Users",
-        churn_risk
-    )
-
-    st.divider()
-
-    # Tabs
-
-    tab1, tab2, tab3, tab4 = st.tabs(
+    X = data[
         [
-            "AI Predictions",
-            "Profit Simulation",
-            "Customer Insights",
-            "Download Report"
+            "orders_per_month",
+            "avg_order_value",
+            "last_order_days",
+            "customer_rating",
+            "discount_used_before"
         ]
+    ]
+
+    y_class = data[
+        "ordered_without_discount"
+    ]
+
+    y_reg = data[
+        "recommended_discount"
+    ]
+
+    classifier = RandomForestClassifier(
+        n_estimators=100,
+        random_state=42
     )
 
-    # TAB 1
+    regressor = RandomForestRegressor(
+        n_estimators=100,
+        random_state=42
+    )
 
-    with tab1:
+    classifier.fit(X, y_class)
 
-        st.subheader(
-            "Customer Discount Intelligence"
-        )
+    regressor.fit(X, y_reg)
 
-        customer_index = st.selectbox(
-            "Select Customer",
-            df.index
-        )
+    return classifier, regressor
 
-        customer = df.iloc[customer_index]
 
-        input_data = np.array(
-            [[
-                customer['orders_per_month'],
-                customer['avg_order_value'],
-                customer['last_order_days'],
-                customer['customer_rating'],
-                customer['discount_used_before']
-            ]]
-        )
+classification_model, regression_model = train_models(
+    df
+)
 
-        prediction = classification_model.predict(
-            input_data
+# --------------------------------
+# KPIs
+# --------------------------------
+
+total_customers = len(df)
+
+avg_order = round(
+    df["avg_order_value"].mean(),
+    2
+)
+
+loyal_customers = len(
+    df[df["orders_per_month"] > 10]
+)
+
+churn_risk = len(
+    df[df["last_order_days"] > 20]
+)
+
+# --------------------------------
+# KPI CARDS
+# --------------------------------
+
+c1, c2, c3, c4 = st.columns(4)
+
+c1.metric(
+    "Customers",
+    total_customers
+)
+
+c2.metric(
+    "Avg Order Value",
+    f"₹{avg_order}"
+)
+
+c3.metric(
+    "Loyal Customers",
+    loyal_customers
+)
+
+c4.metric(
+    "Churn Risk",
+    churn_risk
+)
+
+st.divider()
+
+# --------------------------------
+# TABS
+# --------------------------------
+
+tab1, tab2, tab3, tab4 = st.tabs(
+    [
+        "AI Prediction",
+        "Profit Simulator",
+        "Insights",
+        "Report"
+    ]
+)
+
+# --------------------------------
+# TAB 1
+# --------------------------------
+
+with tab1:
+
+    st.subheader(
+        "Customer Intelligence"
+    )
+
+    selected_customer = st.selectbox(
+        "Select Customer",
+        df.index
+    )
+
+    customer = df.iloc[
+        selected_customer
+    ]
+
+    features = np.array(
+        [[
+            customer["orders_per_month"],
+            customer["avg_order_value"],
+            customer["last_order_days"],
+            customer["customer_rating"],
+            customer["discount_used_before"]
+        ]]
+    )
+
+    prediction = (
+        classification_model.predict(
+            features
         )[0]
+    )
 
-        discount = regression_model.predict(
-            input_data
+    discount = (
+        regression_model.predict(
+            features
         )[0]
+    )
 
-        st.write("### AI Recommendation")
+    if prediction == 1:
 
-        if prediction == 1:
+        st.success(
+            "Customer likely to order WITHOUT discount."
+        )
 
-            st.success(
-                "Customer likely to order WITHOUT discount."
-            )
+    else:
 
-        else:
+        st.warning(
+            "Customer likely NEEDS discount."
+        )
 
-            st.error(
-                "Customer likely NEEDS discount."
-            )
+    st.info(
+        f"Recommended Discount: {round(discount,2)}%"
+    )
+
+    st.write("### Personalized Offer")
+
+    if customer["avg_order_value"] > 700:
+
+        st.success(
+            "Premium Dining Coupon"
+        )
+
+    elif customer["last_order_days"] > 20:
+
+        st.warning(
+            "Win-Back Coupon"
+        )
+
+    elif customer["orders_per_month"] > 10:
 
         st.info(
-            f"Recommended Discount: {round(discount, 2)}%"
+            "Loyalty Reward"
         )
 
-        # Personalized Offer
+    else:
 
-        if customer['avg_order_value'] > 700:
-
-            st.write(
-                "Suggested Offer: Premium Dining Coupon"
-            )
-
-        elif customer['last_order_days'] > 20:
-
-            st.write(
-                "Suggested Offer: Win Back Coupon"
-            )
-
-        elif customer['orders_per_month'] > 10:
-
-            st.write(
-                "Suggested Offer: Loyalty Reward"
-            )
-
-        else:
-
-            st.write(
-                "Suggested Offer: Standard Offer"
-            )
-
-    # TAB 2
-
-    with tab2:
-
-        st.subheader("Profitability Simulation")
-
-        customers = st.slider(
-            "Monthly Customers",
-            100,
-            50000,
-            5000
+        st.write(
+            "Standard Offer"
         )
 
-        discount_amount = st.slider(
-            "Average Coupon Amount",
-            10,
-            500,
-            100
-        )
+# --------------------------------
+# TAB 2
+# --------------------------------
 
-        traditional_cost = (
-            customers * discount_amount
-        )
+with tab2:
 
-        optimized_customers = int(
-            customers * 0.3
-        )
+    st.subheader(
+        "Profit Simulation"
+    )
 
-        optimized_cost = (
-            optimized_customers * discount_amount
-        )
+    customers = st.slider(
+        "Monthly Customers",
+        100,
+        50000,
+        5000
+    )
 
-        savings = (
-            traditional_cost - optimized_cost
-        )
+    coupon = st.slider(
+        "Average Coupon Value",
+        10,
+        500,
+        100
+    )
 
-        col1, col2, col3 = st.columns(3)
+    traditional_cost = (
+        customers * coupon
+    )
 
-        col1.metric(
-            "Traditional Cost",
-            f"₹{traditional_cost}"
-        )
+    optimized_cost = (
+        int(customers * 0.3)
+        * coupon
+    )
 
-        col2.metric(
-            "AI Optimized Cost",
-            f"₹{optimized_cost}"
-        )
+    savings = (
+        traditional_cost
+        - optimized_cost
+    )
 
-        col3.metric(
-            "Estimated Savings",
-            f"₹{savings}"
-        )
+    p1, p2, p3 = st.columns(3)
 
-    # TAB 3
+    p1.metric(
+        "Traditional Cost",
+        f"₹{traditional_cost:,}"
+    )
 
-    with tab3:
+    p2.metric(
+        "AI Cost",
+        f"₹{optimized_cost:,}"
+    )
 
-        st.subheader("Customer Intelligence")
+    p3.metric(
+        "Estimated Savings",
+        f"₹{savings:,}"
+    )
 
-        fig, ax = plt.subplots()
+# --------------------------------
+# TAB 3
+# --------------------------------
 
-        segments = [
-            loyal_customers,
-            churn_risk,
-            total_customers - loyal_customers
-        ]
+with tab3:
 
-        labels = [
-            "Loyal",
-            "Churn Risk",
-            "Regular"
-        ]
+    st.subheader(
+        "Customer Segmentation"
+    )
 
-        ax.pie(
-            segments,
-            labels=labels,
-            autopct='%1.1f%%'
-        )
+    fig, ax = plt.subplots()
 
-        st.pyplot(fig)
+    labels = [
+        "Loyal",
+        "Churn Risk",
+        "Regular"
+    ]
 
-    # TAB 4
+    values = [
+        loyal_customers,
+        churn_risk,
+        total_customers - loyal_customers
+    ]
 
-    with tab4:
+    ax.pie(
+        values,
+        labels=labels,
+        autopct="%1.1f%%"
+    )
 
-        st.subheader("Download Business Report")
+    st.pyplot(fig)
 
-        report = f'''
-AI Discount Optimization Report
+# --------------------------------
+# TAB 4
+# --------------------------------
+
+with tab4:
+
+    st.subheader(
+        "Download Report"
+    )
+
+    report = f"""
+Zomato Discount Optimization Report
 
 Total Customers: {total_customers}
 
@@ -268,18 +392,21 @@ Loyal Customers: {loyal_customers}
 
 Churn Risk Customers: {churn_risk}
 
-Estimated Savings:
-₹{savings}
-'''
+Estimated Savings: ₹{savings}
+"""
 
-        st.download_button(
-            label="Download Report",
-            data=report,
-            file_name="business_report.txt"
-        )
-
-else:
-
-    st.info(
-        "Please upload a customer dataset to continue."
+    st.download_button(
+        label="Download Report",
+        data=report,
+        file_name="zomato_report.txt"
     )
+
+# --------------------------------
+# FOOTER
+# --------------------------------
+
+st.divider()
+
+st.caption(
+    "Built by Avishkar Menge"
+)
