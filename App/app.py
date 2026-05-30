@@ -4,10 +4,11 @@ import numpy as np
 import joblib
 import matplotlib.pyplot as plt
 from pathlib import Path
+import os
 
-# -----------------------------
+# =====================================
 # PAGE CONFIG
-# -----------------------------
+# =====================================
 
 st.set_page_config(
     page_title="Zomato Discount AI",
@@ -15,69 +16,83 @@ st.set_page_config(
     layout="wide"
 )
 
-# -----------------------------
-# PROJECT PATHS
-# -----------------------------
+# =====================================
+# PATHS
+# =====================================
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent
 
-DATA_PATH = BASE_DIR / "Data" / "customers.csv"
+DATA_PATH = ROOT / "Data" / "customers.csv"
 
-MODEL_V1_PATH = BASE_DIR / "Models" / "model_v1.pkl"
-MODEL_V2_PATH = BASE_DIR / "Models" / "model_v2.pkl"
+MODEL_V1_PATH = ROOT / "Models" / "model_v1.pkl"
+MODEL_V2_PATH = ROOT / "Models" / "model_v2.pkl"
 
-# -----------------------------
+# =====================================
+# DEBUG SECTION
+# =====================================
+
+with st.sidebar:
+    st.subheader("System Check")
+
+    st.write("CSV Found:", DATA_PATH.exists())
+    st.write("Model V1 Found:", MODEL_V1_PATH.exists())
+    st.write("Model V2 Found:", MODEL_V2_PATH.exists())
+
+# =====================================
 # LOAD DATA
-# -----------------------------
+# =====================================
 
 @st.cache_data
 def load_data():
     return pd.read_csv(DATA_PATH)
 
-# -----------------------------
+# =====================================
 # LOAD MODELS
-# -----------------------------
+# =====================================
 
 @st.cache_resource
 def load_models():
 
-    model_v1 = joblib.load(MODEL_V1_PATH)
-    model_v2 = joblib.load(MODEL_V2_PATH)
+    model1 = joblib.load(MODEL_V1_PATH)
+    model2 = joblib.load(MODEL_V2_PATH)
 
-    return model_v1, model_v2
+    return model1, model2
 
-# -----------------------------
-# MAIN
-# -----------------------------
+# =====================================
+# FILE LOADING
+# =====================================
 
 try:
 
     df = load_data()
 
-    classification_model, regression_model = load_models()
+    model_v1, model_v2 = load_models()
 
 except Exception as e:
 
-    st.error(f"Error Loading Files: {e}")
+    st.error("Application Startup Error")
+
+    st.exception(e)
+
     st.stop()
 
-# -----------------------------
+# =====================================
 # TITLE
-# -----------------------------
+# =====================================
 
 st.title("🍕 Zomato Discount Optimization AI")
 
 st.markdown(
     """
-    Predict customer discount requirements,
-    optimize coupon spending,
-    and improve profitability.
+    AI-powered system to optimize discounts,
+    improve customer retention,
+    and increase profitability.
     """
 )
 
-# -----------------------------
-# KPIs
-# -----------------------------
+# =====================================
+# KPI SECTION
+# =====================================
 
 total_customers = len(df)
 
@@ -90,7 +105,7 @@ loyal_customers = len(
     df[df["orders_per_month"] > 10]
 )
 
-churn_risk = len(
+churn_risk_customers = len(
     df[df["last_order_days"] > 20]
 )
 
@@ -113,27 +128,27 @@ col3.metric(
 
 col4.metric(
     "Churn Risk",
-    churn_risk
+    churn_risk_customers
 )
 
 st.divider()
 
-# -----------------------------
+# =====================================
 # TABS
-# -----------------------------
+# =====================================
 
 tab1, tab2, tab3, tab4 = st.tabs(
     [
         "Prediction",
         "Profit Simulation",
-        "Customer Insights",
+        "Insights",
         "Report"
     ]
 )
 
-# ===================================================
+# =====================================
 # TAB 1
-# ===================================================
+# =====================================
 
 with tab1:
 
@@ -141,16 +156,16 @@ with tab1:
         "Customer Discount Prediction"
     )
 
-    customer_id = st.selectbox(
+    customer_index = st.selectbox(
         "Select Customer",
         df.index
     )
 
-    customer = df.iloc[customer_id]
+    customer = df.iloc[customer_index]
 
     st.write(customer)
 
-    input_data = np.array(
+    features = np.array(
         [[
             customer["orders_per_month"],
             customer["avg_order_value"],
@@ -160,37 +175,47 @@ with tab1:
         ]]
     )
 
-    prediction = classification_model.predict(
-        input_data
-    )[0]
+    try:
 
-    discount = regression_model.predict(
-        input_data
-    )[0]
+        prediction = model_v1.predict(
+            features
+        )[0]
 
-    if prediction == 1:
+        recommended_discount = model_v2.predict(
+            features
+        )[0]
 
-        st.success(
-            "Customer likely to order without discount."
+        if prediction == 1:
+
+            st.success(
+                "Customer likely to order without discount."
+            )
+
+        else:
+
+            st.warning(
+                "Customer likely needs a discount."
+            )
+
+        st.info(
+            f"Recommended Discount: {round(recommended_discount,2)}%"
         )
 
-    else:
+    except Exception as e:
 
-        st.warning(
-            "Customer may require discount."
-        )
+        st.error("Prediction Error")
 
-    st.info(
-        f"Recommended Discount: {round(discount,2)}%"
-    )
+        st.exception(e)
 
-# ===================================================
+# =====================================
 # TAB 2
-# ===================================================
+# =====================================
 
 with tab2:
 
-    st.subheader("Profit Simulation")
+    st.subheader(
+        "Profit Simulation"
+    )
 
     customers = st.slider(
         "Monthly Customers",
@@ -208,7 +233,7 @@ with tab2:
 
     traditional_cost = customers * coupon
 
-    ai_cost = int(customers * 0.3) * coupon
+    ai_cost = int(customers * 0.30) * coupon
 
     savings = traditional_cost - ai_cost
 
@@ -220,7 +245,7 @@ with tab2:
     )
 
     c2.metric(
-        "AI Cost",
+        "AI Optimized Cost",
         f"₹{ai_cost:,}"
     )
 
@@ -229,9 +254,9 @@ with tab2:
         f"₹{savings:,}"
     )
 
-# ===================================================
+# =====================================
 # TAB 3
-# ===================================================
+# =====================================
 
 with tab3:
 
@@ -249,7 +274,7 @@ with tab3:
 
     values = [
         loyal_customers,
-        churn_risk,
+        churn_risk_customers,
         total_customers - loyal_customers
     ]
 
@@ -261,16 +286,18 @@ with tab3:
 
     st.pyplot(fig)
 
-# ===================================================
+# =====================================
 # TAB 4
-# ===================================================
+# =====================================
 
 with tab4:
 
-    st.subheader("Business Report")
+    st.subheader(
+        "Business Report"
+    )
 
     report = f"""
-Zomato Discount Optimization Report
+Zomato Discount AI Report
 
 Total Customers: {total_customers}
 
@@ -278,16 +305,20 @@ Average Order Value: ₹{avg_order_value}
 
 Loyal Customers: {loyal_customers}
 
-Churn Risk Customers: {churn_risk}
+Churn Risk Customers: {churn_risk_customers}
 
 Estimated Savings: ₹{savings}
 """
 
     st.download_button(
-        "Download Report",
-        report,
-        file_name="business_report.txt"
+        label="Download Report",
+        data=report,
+        file_name="zomato_discount_report.txt"
     )
+
+# =====================================
+# FOOTER
+# =====================================
 
 st.divider()
 
