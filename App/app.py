@@ -53,39 +53,41 @@ if uploaded_file:
     )
 
     # TAB 1
-    with tab1:
-        st.subheader("Customer Discount Intelligence")
-        customer_index = st.selectbox("Select Customer", df.index)
+    # TAB 1
+
+with tab1:
+    st.subheader("Customer Discount Intelligence")
+
+    # Show customer IDs instead of raw index
+    if "customer_id" in df.columns:
+        customer_id = st.selectbox("Select Customer", df["customer_id"])
+        customer = df[df["customer_id"] == customer_id].iloc[0]
+    else:
+        # fallback: use row number
+        customer_index = st.selectbox("Select Customer Row", range(len(df)))
         customer = df.iloc[customer_index]
 
-        input_data = np.array([[
-            customer['orders_per_month'],
-            customer['avg_order_value'],
-            customer['last_order_days'],
-            customer['customer_rating'],
-            customer['discount_used_before']
-        ]])
+    input_data = np.array([[
+        customer.get('orders_per_month', 0),
+        customer.get('avg_order_value', 0),
+        customer.get('last_order_days', 0),
+        customer.get('customer_rating', 0),
+        customer.get('discount_used_before', 0)
+    ]])
 
-        prediction = classification_model.predict(input_data)[0]
-        discount = regression_model.predict(input_data)[0]
+    prediction = classification_model.predict(input_data)[0]
+    discount = regression_model.predict(input_data)[0]
 
-        st.write("### AI Recommendation")
-        if prediction == 1:
-            st.success("Customer likely to order WITHOUT discount.")
-        else:
-            st.error("Customer likely NEEDS discount.")
+    st.write("### AI Recommendation")
 
-        st.info(f"Recommended Discount: {round(discount, 2)}%")
+    if prediction == 1:
+        st.success("Customer likely to order WITHOUT discount.")
+    else:
+        st.error("Customer likely NEEDS discount.")
 
-        # Personalized Offer
-        if customer['avg_order_value'] > 700:
-            st.write("Suggested Offer: Premium Dining Coupon")
-        elif customer['last_order_days'] > 20:
-            st.write("Suggested Offer: Win Back Coupon")
-        elif customer['orders_per_month'] > 10:
-            st.write("Suggested Offer: Loyalty Reward")
-        else:
-            st.write("Suggested Offer: Standard Offer")
+    st.info(f"Recommended Discount: {round(discount, 2)}%")
+
+
 
     # TAB 2
     with tab2:
